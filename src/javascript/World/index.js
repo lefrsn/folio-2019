@@ -9,6 +9,7 @@ import Car from './Car.js'
 import Areas from './Areas.js'
 import Tiles from './Tiles.js'
 import Walls from './Walls.js'
+import Picker from './Picker.js'
 import IntroSection from './Sections/IntroSection.js'
 import ProjectsSection from './Sections/ProjectsSection.js'
 import CrossroadsSection from './Sections/CrossroadsSection.js'
@@ -76,6 +77,7 @@ export default class World
         this.setWalls()
         this.setSections()
         this.setEasterEggs()
+        this.setPicker()
     }
 
     setReveal()
@@ -395,6 +397,9 @@ export default class World
             config: this.config
         })
         this.container.add(this.car.container)
+        
+        // Set car reference in camera for POV mode
+        this.camera.car = this.car
     }
 
     setSections()
@@ -508,5 +513,17 @@ export default class World
             physics: this.physics
         })
         this.container.add(this.easterEggs.container)
+    }
+
+    setPicker()
+    {
+        this.picker = new Picker({
+            sizes: this.sizes,
+            camera: this.camera,
+            scene: this.scene,
+            physics: this.physics,
+            time: this.time,
+            objects: this.objects
+        })
     }
 }
