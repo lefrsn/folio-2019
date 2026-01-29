@@ -70,6 +70,8 @@ export default class World
         this.setShadows()
         this.setPhysics()
         this.setZones()
+        this.setLobby()
+        this.setRoomZones()
         this.setObjects()
         this.setCar()
         this.areas.car = this.car
@@ -328,6 +330,253 @@ export default class World
         this.container.add(this.zones.container)
     }
 
+    setLobby()
+    {
+        // Create lobby group
+        this.lobby = new THREE.Group()
+
+        // Central title in the lobby
+        const canvas = document.createElement('canvas')
+        canvas.width = 1024
+        canvas.height = 256
+        const ctx = canvas.getContext('2d')
+        
+        // White background
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Title text
+        ctx.fillStyle = '#ff8908'
+        ctx.font = 'bold 120px Arial'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('LENNART FRESEN', canvas.width / 2, canvas.height / 3)
+        
+        // Subtitle text
+        ctx.fillStyle = '#333333'
+        ctx.font = 'bold 60px Arial'
+        ctx.fillText('Creative Developer', canvas.width / 2, canvas.height * 0.75)
+        
+        // Create texture
+        const texture = new THREE.CanvasTexture(canvas)
+        
+        // Create title mesh positioned in front of camera
+        const titleGeometry = new THREE.PlaneGeometry(8, 2)
+        const titleMaterial = new THREE.MeshStandardMaterial({
+            map: texture,
+            metalness: 0.1,
+            roughness: 0.4
+        })
+        const titleMesh = new THREE.Mesh(titleGeometry, titleMaterial)
+        titleMesh.position.set(0, 1.5, -5)
+        this.lobby.add(titleMesh)
+        
+        // Add entry portals for each room (invisible collision boxes pointing to rooms)
+        this.lobby.roomPortals = [
+            { name: 'about', position: new THREE.Vector3(-7, 0.5, -3), color: 0x2050aa },
+            { name: 'products', position: new THREE.Vector3(7, 0.5, -3), color: 0x20aa50 },
+            { name: 'gallery', position: new THREE.Vector3(0, 0.5, -8), color: 0xaa20aa }
+        ]
+        
+        // Create clickable portal indicators
+        for(const portal of this.lobby.roomPortals) {
+            const portalGeometry = new THREE.CylinderGeometry(1.5, 1.5, 0.1, 32)
+            const portalMaterial = new THREE.MeshStandardMaterial({
+                color: portal.color,
+                metalness: 0.4,
+                roughness: 0.6,
+                transparent: true,
+                opacity: 0.4
+            })
+            const portalMesh = new THREE.Mesh(portalGeometry, portalMaterial)
+            portalMesh.position.copy(portal.position)
+            portalMesh.userData.portalName = portal.name
+            portalMesh.userData.isPortal = true
+            this.lobby.add(portalMesh)
+        }
+        
+        this.container.add(this.lobby)
+    }
+
+    setRoomZones()
+    {
+        // Create colored zone indicators for each room
+        this.roomZones = new THREE.Group()
+        
+        // About room - Blue zone (left side)
+        const aboutGeometry = new THREE.PlaneGeometry(8, 8)
+        const aboutMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2050aa,
+            metalness: 0.2,
+            roughness: 0.8,
+            transparent: true,
+            opacity: 0.3
+        })
+        const aboutZone = new THREE.Mesh(aboutGeometry, aboutMaterial)
+        aboutZone.rotation.x = -Math.PI * 0.5
+        aboutZone.position.set(-10, 0.01, 5)
+        aboutZone.userData.roomName = 'about'
+        this.roomZones.add(aboutZone)
+        
+        // About sign
+        this.createRoomSign('ABOUT', -10, 3, 5, 0x2050aa)
+        
+        // Products room - Green zone (right side)
+        const productsGeometry = new THREE.PlaneGeometry(8, 8)
+        const productsMaterial = new THREE.MeshStandardMaterial({
+            color: 0x20aa50,
+            metalness: 0.2,
+            roughness: 0.8,
+            transparent: true,
+            opacity: 0.3
+        })
+        const productsZone = new THREE.Mesh(productsGeometry, productsMaterial)
+        productsZone.rotation.x = -Math.PI * 0.5
+        productsZone.position.set(10, 0.01, 5)
+        productsZone.userData.roomName = 'products'
+        this.roomZones.add(productsZone)
+        
+        // Products sign
+        this.createRoomSign('PRODUCTS', 10, 3, 5, 0x20aa50)
+        
+        // Gallery room - Purple zone (center-back)
+        const galleryGeometry = new THREE.PlaneGeometry(8, 8)
+        const galleryMaterial = new THREE.MeshStandardMaterial({
+            color: 0xaa20aa,
+            metalness: 0.2,
+            roughness: 0.8,
+            transparent: true,
+            opacity: 0.3
+        })
+        const galleryZone = new THREE.Mesh(galleryGeometry, galleryMaterial)
+        galleryZone.rotation.x = -Math.PI * 0.5
+        galleryZone.position.set(0, 0.01, -8)
+        galleryZone.userData.roomName = 'gallery'
+        this.roomZones.add(galleryZone)
+        
+        // Gallery sign
+        this.createRoomSign('GALLERY', 0, 3, -8, 0xaa20aa)
+        
+        // Hide room zones initially - only visible in rooms
+        this.roomZones.visible = false
+        
+        this.container.add(this.roomZones)
+    }
+
+    createRoomSign(_text, _x, _y, _z, _color)
+    {
+        // Create canvas texture for text
+        const canvas = document.createElement('canvas')
+        canvas.width = 512
+        canvas.height = 256
+        const ctx = canvas.getContext('2d')
+        
+        // Background
+        ctx.fillStyle = `rgb(${(_color >> 16) & 255}, ${(_color >> 8) & 255}, ${_color & 255})`
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+        
+        // Text
+        ctx.fillStyle = 'white'
+        ctx.font = 'bold 80px Arial'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(_text, canvas.width / 2, canvas.height / 2)
+        
+        // Create texture
+        const texture = new THREE.CanvasTexture(canvas)
+        texture.magFilter = THREE.LinearFilter
+        
+        // Create sign mesh
+        const signGeometry = new THREE.PlaneGeometry(4, 2)
+        const signMaterial = new THREE.MeshStandardMaterial({
+            map: texture,
+            metalness: 0.3,
+            roughness: 0.5
+        })
+        const sign = new THREE.Mesh(signGeometry, signMaterial)
+        sign.position.set(_x, _y, _z)
+        
+        this.roomZones.add(sign)
+    }
+
+    enterRoom(_roomName)
+    {
+        // Hide lobby
+        gsap.to(this.lobby, { opacity: 0, duration: 0.5 })
+        
+        // Show areas/room zones
+        this.areas.container.visible = true
+        this.roomZones.visible = true
+        
+        // Update camera state
+        this.camera.currentRoom = _roomName
+        
+        // Position camera looking at the room's zone
+        const roomConfig = {
+            about: { position: new THREE.Vector3(0, 1, 2), lookAt: new THREE.Vector3(-10, 1, 5) },
+            products: { position: new THREE.Vector3(0, 1, 2), lookAt: new THREE.Vector3(10, 1, 5) },
+            gallery: { position: new THREE.Vector3(0, 1, 2), lookAt: new THREE.Vector3(0, 1, -8) }
+        }
+        
+        const config = roomConfig[_roomName]
+        if(config)
+        {
+            // Animate camera
+            gsap.to(this.camera.instance.position, { 
+                x: config.position.x, 
+                y: config.position.y, 
+                z: config.position.z, 
+                duration: 1.2, 
+                ease: 'power2.inOut' 
+            })
+            
+            gsap.to(this.camera, { 
+                target: config.lookAt, 
+                duration: 1.2, 
+                ease: 'power2.inOut' 
+            })
+        }
+        
+        // Show back to lobby button
+        const backButton = document.querySelector('.js-room-back-button')
+        if(backButton)
+        {
+            backButton.style.display = 'block'
+            gsap.to(backButton, { opacity: 1, duration: 0.3 })
+        }
+    }
+
+    backToLobby()
+    {
+        // Show lobby
+        gsap.to(this.lobby, { opacity: 1, duration: 0.5 })
+        
+        // Hide areas/room zones
+        this.areas.container.visible = false
+        this.roomZones.visible = false
+        
+        // Update camera state
+        this.camera.currentRoom = 'lobby'
+        
+        // Position camera back in lobby
+        gsap.to(this.camera.instance.position, { 
+            x: 0, 
+            y: 1, 
+            z: 3, 
+            duration: 1.2, 
+            ease: 'power2.inOut' 
+        })
+        
+        // Hide back to lobby button
+        const backButton = document.querySelector('.js-room-back-button')
+        if(backButton)
+        {
+            gsap.to(backButton, { opacity: 0, duration: 0.3, onComplete: () => {
+                backButton.style.display = 'none'
+            }})
+        }
+    }
+
     setAreas()
     {
         this.areas = new Areas({
@@ -342,6 +591,9 @@ export default class World
         })
 
         this.container.add(this.areas.container)
+        
+        // Hide areas initially - only visible when in rooms
+        this.areas.container.visible = false
     }
 
     setTiles()
@@ -523,7 +775,8 @@ export default class World
             scene: this.scene,
             physics: this.physics,
             time: this.time,
-            objects: this.objects
+            objects: this.objects,
+            world: this
         })
     }
 }

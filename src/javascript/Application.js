@@ -232,6 +232,9 @@ export default class Application
             passes: this.passes
         })
         this.scene.add(this.world.container)
+        
+        // Pass world reference to camera for room interactions
+        this.camera.world = this.world
     }
 
     /**

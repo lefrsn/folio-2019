@@ -43,6 +43,50 @@
 
     <canvas class="canvas js-canvas"></canvas>
 
+    <div class="menu-overlay js-menu-overlay">
+        <div class="menu-overlay-backdrop"></div>
+        <div class="menu-container">
+            <div class="menu-header">
+                <h1 class="menu-title">Lennart Fresen</h1>
+                <p class="menu-subtitle">Creative Developer & Designer</p>
+            </div>
+
+            <nav class="menu-navigation">
+                <button class="nav-tab active js-nav-tab" data-tab="about">About</button>
+                <button class="nav-tab js-nav-tab" data-tab="products">Products</button>
+                <button class="nav-tab js-nav-tab" data-tab="gallery">Gallery</button>
+            </nav>
+
+            <div class="menu-content">
+                <div class="content-section active" data-content="about">
+                    <h2>About Me</h2>
+                    <p>Welcome to my interactive portfolio. Explore the landscape, pick up objects, and discover my work.</p>
+                </div>
+                <div class="content-section" data-content="products">
+                    <h2>Products</h2>
+                    <p>Check out my latest projects and creations.</p>
+                </div>
+                <div class="content-section" data-content="gallery">
+                    <h2>Gallery</h2>
+                    <p>A collection of my work and inspirations.</p>
+                </div>
+            </div>
+
+            <div class="menu-footer">
+                <button class="close-button js-close-menu">Explore &rarr;</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="pov-menu js-pov-menu" style="display: block;">
+        <button class="menu-button js-menu-button">← Back to Menu</button>
+        <button class="menu-button js-room-back-button" style="display: none; position: absolute; right: 20px;">← Back to Lobby</button>
+    </div>
+
+    <div class="bird-view-menu js-bird-view-menu" style="display: none;">
+        <button class="menu-button js-bird-menu-button">Menu</button>
+    </div>
+
     <div class="threejs-journey is-hover-none js-threejs-journey">
         <div class="message js-message">
             <div class="boy">

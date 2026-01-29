@@ -22,9 +22,14 @@ export default class Camera
         this.easing = 0.15
 
         // Camera mode
-        this.mode = 'isometric' // 'isometric' or 'pov'
+        this.mode = 'pov' // 'isometric' or 'pov' - START IN POV LOBBY MODE
         this.povHeight = 0.8 // Height above car center for POV
         this.povDistance = 0.2 // Distance in front of car for POV
+        this.povZoom = 1 // Zoom multiplier for POV
+        this.povTargetZoom = 1 // Target zoom for smooth reset
+        this.povZoomEasing = 0.15 // Easing for zoom reset
+        this.povLastScrollDirection = 0 // Track scroll direction for auto-reset
+        this.currentRoom = 'lobby' // Track which room we're in
 
         // Debug
         if(this.debug)
@@ -90,6 +95,15 @@ export default class Camera
         this.fov = {}
         this.fov.isometric = 40
         this.fov.pov = 85
+        this.fov.menu = 55
+        
+        // Room configurations
+        this.rooms = {
+            about: { position: { x: -10, y: 5, z: 15 }, lookAt: { x: 0, y: 0, z: 5 }, color: { r: 0.2, g: 0.3, b: 0.5 } },
+            products: { position: { x: 10, y: 5, z: 15 }, lookAt: { x: 0, y: 0, z: 5 }, color: { r: 0.2, g: 0.5, b: 0.3 } },
+            gallery: { position: { x: 0, y: 5, z: 20 }, lookAt: { x: 0, y: 0, z: 0 }, color: { r: 0.4, g: 0.2, b: 0.5 } }
+        }
+        this.currentRoom = 'about'
 
         // Resize event
         this.sizes.on('resize', () =>
@@ -127,7 +141,6 @@ export default class Camera
                         this.car.physics.car.chassis.body.position.y,
                         this.car.physics.car.chassis.body.position.z
                     )
-                    
                     // Get car's forward direction
                     const carQuat = new THREE.Quaternion(
                         this.car.physics.car.chassis.body.quaternion.x,
@@ -135,27 +148,28 @@ export default class Camera
                         this.car.physics.car.chassis.body.quaternion.z,
                         this.car.physics.car.chassis.body.quaternion.w
                     )
-                    
                     // Forward vector for car (X-axis due to -PI/2 Z rotation)
                     const forward = new THREE.Vector3(1, 0, 0)
                     forward.applyQuaternion(carQuat)
                     
-                    // Right vector for car
-                    const right = new THREE.Vector3(1, 0, 0)
-                    right.applyQuaternion(carQuat)
-                    
                     // Position camera above and in front of car
                     const povPos = carPos.clone()
                     povPos.z += this.povHeight
-                    povPos.add(forward.clone().multiplyScalar(this.povDistance))
-                    
+                    povPos.add(forward.clone().multiplyScalar(this.povDistance * this.povZoom))
                     this.instance.position.copy(povPos)
                     
-                    // Look ahead in car's direction
+                    // Look in car's direction with horizontal rotation only
                     const lookTarget = carPos.clone()
                     lookTarget.z += this.povHeight * 0.5
-                    lookTarget.add(forward.clone().multiplyScalar(5))
                     
+                    // Apply horizontal rotation to forward direction
+                    const lookDir = forward.clone()
+                    const yAxis = new THREE.Vector3(0, 1, 0)
+                    const rotQuat = new THREE.Quaternion()
+                    rotQuat.setFromAxisAngle(yAxis, this.rotation.horizontal)
+                    lookDir.applyQuaternion(rotQuat)
+                    
+                    lookTarget.add(lookDir.multiplyScalar(10))
                     this.instance.lookAt(lookTarget)
                 }
             }
@@ -170,9 +184,21 @@ export default class Camera
             this.pan.enabled = false
             this.pan.disable()
             
+            // Lock vertical rotation
+            this.rotation.targetVertical = 0
+            this.rotation.vertical = 0
+            
             // Change to wide FOV
             this.instance.fov = this.fov.pov
             this.instance.updateProjectionMatrix()
+            
+            // Show menu button
+            const menuUI = document.querySelector('.js-pov-menu')
+            if(menuUI) menuUI.classList.add('active')
+            
+            // Hide bird view menu
+            const birdViewMenu = document.querySelector('.js-bird-view-menu')
+            if(birdViewMenu) birdViewMenu.classList.remove('active')
             
             // Hide car body but keep wheels visible
             if(this.car)
@@ -194,6 +220,16 @@ export default class Camera
             this.pan.enabled = true
             this.pan.enable()
             
+            // Hide menu button
+            const menuUI = document.querySelector('.js-pov-menu')
+            if(menuUI) menuUI.classList.remove('active')
+                        // Show bird view menu button
+            const birdViewMenu = document.querySelector('.js-bird-view-menu')
+            if(birdViewMenu) birdViewMenu.classList.add('active')
+                        // Reset zoom
+            this.povZoom = 1
+            this.povTargetZoom = 1
+            
             // Change back to normal FOV
             this.instance.fov = this.fov.isometric
             this.instance.updateProjectionMatrix()
@@ -210,6 +246,108 @@ export default class Camera
                 })
             }
         }
+    }
+
+    setMenuMode(_enabled)
+    {
+        if(_enabled)
+        {
+            this.mode = 'menu'
+            this.pan.enabled = false
+            this.pan.disable()
+            
+            // Wide overview FOV
+            this.instance.fov = this.fov.menu
+            this.instance.updateProjectionMatrix()
+            
+            // Show car body
+            if(this.car)
+            {
+                this.car.container.traverse((_child) =>
+                {
+                    if(_child.isMesh)
+                    {
+                        _child.visible = true
+                    }
+                })
+            }
+            
+            // Show the menu overlay
+            const menuOverlay = document.querySelector('.js-menu-overlay')
+            if(menuOverlay) menuOverlay.classList.add('active')
+        }
+        else
+        {
+            // Hide menu overlay
+            const menuOverlay = document.querySelector('.js-menu-overlay')
+            if(menuOverlay) menuOverlay.classList.remove('active')
+        }
+    }
+
+    transitionToRoom(_roomName)
+    {
+        this.currentRoom = _roomName
+        const room = this.rooms[_roomName]
+        
+        if(!room) return
+        
+        // Hide menu overlay with fade
+        const menuOverlay = document.querySelector('.js-menu-overlay')
+        if(menuOverlay)
+        {
+            menuOverlay.style.opacity = '1'
+            gsap.to(menuOverlay, {
+                opacity: 0,
+                duration: 0.8,
+                ease: 'power2.inOut',
+                onComplete: () =>
+                {
+                    menuOverlay.classList.remove('active')
+                    menuOverlay.style.opacity = '1'
+                }
+            })
+        }
+        
+        // Animate camera to room position
+        gsap.to(this.instance.position, {
+            x: room.position.x,
+            y: room.position.y,
+            z: room.position.z,
+            duration: 1.2,
+            ease: 'power2.inOut'
+        })
+        
+        // Animate look-at target
+        const lookAtTarget = new THREE.Vector3(room.lookAt.x, room.lookAt.y, room.lookAt.z)
+        gsap.to(this, {
+            onUpdate: () =>
+            {
+                this.instance.lookAt(lookAtTarget)
+            },
+            duration: 1.2,
+            ease: 'power2.inOut'
+        })
+        
+        // Change scene background color based on room
+        gsap.to(this.scene.background, {
+            r: room.color.r,
+            g: room.color.g,
+            b: room.color.b,
+            duration: 1.2,
+            ease: 'power2.inOut'
+        })
+        
+        // Change to isometric mode after transition
+        setTimeout(() =>
+        {
+            this.mode = 'isometric'
+            this.pan.enabled = true
+            this.pan.enable()
+            
+            // Show bird view menu
+            const birdViewMenu = document.querySelector('.js-bird-view-menu')
+            if(birdViewMenu) birdViewMenu.classList.add('active')
+        }, 1200)
     }
 
     setZoom()
@@ -419,6 +557,12 @@ export default class Camera
         // Time tick event
         this.time.on('tick', () =>
         {
+            // Update POV zoom with easing
+            if(this.mode === 'pov')
+            {
+                this.povZoom += (this.povTargetZoom - this.povZoom) * this.povZoomEasing
+            }
+            
             // If active
             if(this.pan.active && this.pan.needsUpdate)
             {
@@ -449,7 +593,7 @@ export default class Camera
         this.rotation = {}
         this.rotation.enabled = true
         this.rotation.active = false
-        this.rotation.easing = 0.15
+        this.rotation.easing = 0.08
         this.rotation.start = {}
         this.rotation.start.x = 0
         this.rotation.start.y = 0
@@ -457,9 +601,14 @@ export default class Camera
         this.rotation.vertical = 0
         this.rotation.targetHorizontal = 0
         this.rotation.targetVertical = 0
-        this.rotation.sensitivity = 0.0008
+        this.rotation.sensitivityHorizontal = 0.012
+        this.rotation.sensitivityVertical = 0.0015
         this.rotation.minVertical = -Math.PI * 0.3
         this.rotation.maxVertical = Math.PI * 0.3
+        
+        // Store initial rotations for POV reset
+        this.rotation.initialHorizontal = 0
+        this.rotation.initialVertical = 0
 
         this.rotation.down = (_x, _y) =>
         {
@@ -471,6 +620,13 @@ export default class Camera
             this.rotation.active = true
             this.rotation.start.x = _x
             this.rotation.start.y = _y
+            
+            // Store initial rotation values if in POV mode
+            if(this.mode === 'pov')
+            {
+                this.rotation.initialHorizontal = this.rotation.targetHorizontal
+                this.rotation.initialVertical = this.rotation.targetVertical
+            }
         }
 
         this.rotation.move = (_x, _y) =>
@@ -488,9 +644,17 @@ export default class Camera
             const deltaX = _x - this.rotation.start.x
             const deltaY = _y - this.rotation.start.y
             
-            this.rotation.targetHorizontal += deltaX * this.rotation.sensitivity
-            this.rotation.targetVertical += deltaY * this.rotation.sensitivity
-            this.rotation.targetVertical = Math.max(Math.min(this.rotation.targetVertical, this.rotation.maxVertical), this.rotation.minVertical)
+            // In POV mode, only allow horizontal rotation
+            if(this.mode === 'pov')
+            {
+                this.rotation.targetHorizontal += deltaX * this.rotation.sensitivityHorizontal
+            }
+            else
+            {
+                this.rotation.targetHorizontal += deltaX * this.rotation.sensitivityHorizontal
+                this.rotation.targetVertical += deltaY * this.rotation.sensitivityVertical
+                this.rotation.targetVertical = Math.max(Math.min(this.rotation.targetVertical, this.rotation.maxVertical), this.rotation.minVertical)
+            }
             
             this.rotation.start.x = _x
             this.rotation.start.y = _y
@@ -498,6 +662,13 @@ export default class Camera
 
         this.rotation.up = () =>
         {
+            // If in POV mode, return to forward-facing direction
+            if(this.mode === 'pov')
+            {
+                this.rotation.targetHorizontal = 0
+                this.rotation.targetVertical = 0
+            }
+            
             this.rotation.active = false
         }
 
@@ -520,6 +691,109 @@ export default class Camera
             this.rotation.up()
         })
 
+        // Mouse wheel zoom for POV
+        window.addEventListener('wheel', (_event) =>
+        {
+            if(this.mode === 'pov')
+            {
+                _event.preventDefault()
+                const scrollDelta = _event.deltaY
+                
+                // Check if scroll direction reversed (from up to down or vice versa)
+                if(this.povLastScrollDirection !== 0 && Math.sign(scrollDelta) !== Math.sign(this.povLastScrollDirection))
+                {
+                    // Direction reversed - start returning to 1
+                    this.povTargetZoom = 1
+                }
+                else
+                {
+                    // Same direction - continue zooming
+                    this.povTargetZoom += scrollDelta * 0.003
+                    this.povTargetZoom = Math.max(0.3, Math.min(30, this.povTargetZoom))
+                }
+                
+                this.povLastScrollDirection = scrollDelta
+            }
+        }, { passive: false })
+
+        // Menu button click handler (from POV back to menu)
+        const menuButton = document.querySelector('.js-menu-button')
+        if(menuButton)
+        {
+            menuButton.addEventListener('click', () =>
+            {
+                this.setPOVMode(false)
+                this.setMenuMode(true)
+            })
+        }
+
+        // Bird view menu button (from isometric view back to menu)
+        const birdMenuButton = document.querySelector('.js-bird-menu-button')
+        if(birdMenuButton)
+        {
+            birdMenuButton.addEventListener('click', () =>
+            {
+                this.setMenuMode(true)
+                
+                // Animate back to menu view
+                gsap.to(this.instance.position, {
+                    x: 0,
+                    y: 8,
+                    z: 10,
+                    duration: 1,
+                    ease: 'power2.inOut'
+                })
+            })
+        }
+
+        // Close menu button (from menu to explore)
+        const closeMenuButton = document.querySelector('.js-close-menu')
+        if(closeMenuButton)
+        {
+            closeMenuButton.addEventListener('click', () =>
+            {
+                this.transitionToRoom('about')
+            })
+        }
+
+        // Room back button (from room back to lobby)
+        const roomBackButton = document.querySelector('.js-room-back-button')
+        if(roomBackButton)
+        {
+            roomBackButton.addEventListener('click', () =>
+            {
+                if(this.world)
+                {
+                    this.world.backToLobby()
+                }
+            })
+        }
+
+        // Navigation tabs
+        const navTabs = document.querySelectorAll('.js-nav-tab')
+        const contentSections = document.querySelectorAll('.content-section')
+        navTabs.forEach(tab =>
+        {
+            tab.addEventListener('click', (e) =>
+            {
+                const tabName = e.target.dataset.tab
+                
+                // Update active tab
+                navTabs.forEach(t => t.classList.remove('active'))
+                tab.classList.add('active')
+                
+                // Update active content
+                contentSections.forEach(section => section.classList.remove('active'))
+                document.querySelector(`[data-content="${tabName}"]`).classList.add('active')
+                
+                // Transition to room after a short delay
+                setTimeout(() =>
+                {
+                    this.transitionToRoom(tabName)
+                }, 300)
+            })
+        })
+
         // Prevent autoscroll on middle click
         window.addEventListener('auxclick', (_event) =>
         {
@@ -536,18 +810,22 @@ export default class Camera
             this.rotation.horizontal += (this.rotation.targetHorizontal - this.rotation.horizontal) * this.rotation.easing
             this.rotation.vertical += (this.rotation.targetVertical - this.rotation.vertical) * this.rotation.easing
 
-            // Apply rotation to angle using both horizontal and vertical
-            const baseDistance = Math.sqrt(1.135 * 1.135 + 1.15 * 1.15)
-            const baseAngle = Math.atan2(1.15, 1.135)
-            
-            const horizontalAngle = baseAngle + this.rotation.horizontal
-            const verticalAngle = this.rotation.vertical
-            
-            const horizontalRadius = baseDistance * Math.cos(verticalAngle)
-            
-            this.angle.value.x = horizontalRadius * Math.cos(horizontalAngle)
-            this.angle.value.y = -1.45 + Math.sin(verticalAngle) * baseDistance * 0.3
-            this.angle.value.z = horizontalRadius * Math.sin(horizontalAngle)
+            // Only apply rotation to angle in isometric mode
+            if(this.mode !== 'pov')
+            {
+                // Apply rotation to angle using both horizontal and vertical
+                const baseDistance = Math.sqrt(1.135 * 1.135 + 1.15 * 1.15)
+                const baseAngle = Math.atan2(1.15, 1.135)
+                
+                const horizontalAngle = baseAngle + this.rotation.horizontal
+                const verticalAngle = this.rotation.vertical
+                
+                const horizontalRadius = baseDistance * Math.cos(verticalAngle)
+                
+                this.angle.value.x = horizontalRadius * Math.cos(horizontalAngle)
+                this.angle.value.y = -1.45 + Math.sin(verticalAngle) * baseDistance * 0.3
+                this.angle.value.z = horizontalRadius * Math.sin(horizontalAngle)
+            }
         })
     }
 

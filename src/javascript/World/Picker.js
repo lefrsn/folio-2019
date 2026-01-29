@@ -11,6 +11,7 @@ export default class Picker
         this.physics = _options.physics
         this.time = _options.time
         this.objects = _options.objects
+        this.world = _options.world
 
         // Setup
         this.raycaster = new THREE.Raycaster()
@@ -41,6 +42,38 @@ export default class Picker
         {
             this.mouse.x = (event.clientX / this.sizes.viewport.width) * 2 - 1
             this.mouse.y = -(event.clientY / this.sizes.viewport.height) * 2 + 1
+            
+            // Check if hovering over pickable object
+            if(!this.selectedBody)
+            {
+                this.raycaster.setFromCamera(this.mouse, this.camera.instance)
+                
+                const pickableMeshes = []
+                for(const item of this.objects.items)
+                {
+                    if(item.collision && item.collision.body && item.collision.body.mass > 0)
+                    {
+                        item.container.traverse((_child) =>
+                        {
+                            if(_child instanceof THREE.Mesh)
+                            {
+                                pickableMeshes.push(_child)
+                            }
+                        })
+                    }
+                }
+                
+                const intersects = this.raycaster.intersectObjects(pickableMeshes, true)
+                
+                if(intersects.length > 0)
+                {
+                    document.body.style.cursor = 'grab'
+                }
+                else
+                {
+                    document.body.style.cursor = 'auto'
+                }
+            }
         })
 
         // Mouse down (pick object) - left click only (button 0)
@@ -63,6 +96,34 @@ export default class Picker
     {
         // Update raycaster with camera and mouse position
         this.raycaster.setFromCamera(this.mouse, this.camera.instance)
+
+        // First check for portal interaction in lobby
+        if(this.camera.currentRoom === 'lobby' && this.world && this.world.lobby)
+        {
+            const portalMeshes = []
+            this.world.lobby.traverse((_child) =>
+            {
+                if(_child.userData && _child.userData.isPortal)
+                {
+                    portalMeshes.push(_child)
+                }
+            })
+
+            if(portalMeshes.length > 0)
+            {
+                const intersects = this.raycaster.intersectObjects(portalMeshes)
+                if(intersects.length > 0)
+                {
+                    const portal = intersects[0].object
+                    if(portal.userData.portalName)
+                    {
+                        // Enter room
+                        this.world.enterRoom(portal.userData.portalName)
+                        return
+                    }
+                }
+            }
+        }
 
         // Get all meshes from objects
         const pickableMeshes = []
@@ -142,6 +203,12 @@ export default class Picker
                         this.constraintStaticBody.position.set(0, 0, 0)
 
                         this.physics.world.addConstraint(this.constraint)
+                        
+                        // Lock rotation to keep object's original orientation
+                        this.selectedBody.angularLock = true
+                        
+                        // Change cursor to grab/grabbing hand
+                        document.body.style.cursor = 'grabbing'
 
                         break
                     }
@@ -158,8 +225,17 @@ export default class Picker
             this.constraint = null
         }
 
+        if(this.selectedBody)
+        {
+            // Unlock rotation when released
+            this.selectedBody.angularLock = false
+        }
+
         this.selectedObject = null
         this.selectedBody = null
+        
+        // Change cursor back to default
+        document.body.style.cursor = 'auto'
     }
 
     setUpdate()
