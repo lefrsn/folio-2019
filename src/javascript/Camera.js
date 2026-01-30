@@ -22,7 +22,7 @@ export default class Camera
         this.easing = 0.15
 
         // Camera mode
-        this.mode = 'pov' // 'isometric' or 'pov' - START IN POV LOBBY MODE
+        this.mode = 'free' // 'isometric', 'pov', 'menu', or 'free' - START IN FREE MODE FOR SCROLL NAVIGATION
         this.povHeight = 0.8 // Height above car center for POV
         this.povDistance = 0.2 // Distance in front of car for POV
         this.povZoom = 1 // Zoom multiplier for POV
@@ -30,6 +30,15 @@ export default class Camera
         this.povZoomEasing = 0.15 // Easing for zoom reset
         this.povLastScrollDirection = 0 // Track scroll direction for auto-reset
         this.currentRoom = 'lobby' // Track which room we're in
+
+        // Camera configuration - all in one place
+        // Isometric camera offset from car (car's local coordinates: X=side, Y=forward, Z=up)
+        this.isometricOffset = new THREE.Vector3(0, -4, 1.5)  // Behind (-Y) and above (+Z) the car
+        this.isometricLookAtOffset = new THREE.Vector3(0, 150, 0)  // Look much further forward for steeper angle
+        
+        // POV camera offset from car (car's local coordinates)
+        this.povOffset = new THREE.Vector3(0, 0.3, -0.8)  // Inside car view
+        this.povLookAtOffset = new THREE.Vector3(0, 5, 0)  // Look ahead
 
         // Debug
         if(this.debug)
@@ -51,11 +60,12 @@ export default class Camera
     {
         // Set up
         this.angle = {}
+        this.angle.customized = false // Track if user has manually adjusted angle
 
         // Items
         this.angle.items = {
-            default: new THREE.Vector3(1.135, - 1.45, 1.15),
-            projects: new THREE.Vector3(0.38, - 1.4, 1.63)
+            default: new THREE.Vector3(-0.5, -2, -1.8),
+            projects: new THREE.Vector3(0.38, 1.4, 1.63)
         }
 
         // Value
@@ -65,6 +75,10 @@ export default class Camera
         // Set method
         this.angle.set = (_name) =>
         {
+            // Don't override if user has manually customized the angle in debug mode
+            if(this.angle.customized && this.debug)
+                return
+                
             const angle = this.angle.items[_name]
             if(typeof angle !== 'undefined')
             {
@@ -76,16 +90,16 @@ export default class Camera
         if(this.debug)
         {
             this.debugFolder.add(this, 'easing').step(0.0001).min(0).max(1).name('easing')
-            this.debugFolder.add(this.angle.value, 'x').step(0.001).min(- 2).max(2).name('invertDirectionX').listen()
-            this.debugFolder.add(this.angle.value, 'y').step(0.001).min(- 2).max(2).name('invertDirectionY').listen()
-            this.debugFolder.add(this.angle.value, 'z').step(0.001).min(- 2).max(2).name('invertDirectionZ').listen()
+            this.debugFolder.add(this.angle.value, 'x').step(0.01).min(- Math.PI).max(Math.PI).name('angle X').listen().onChange(() => { this.angle.customized = true })
+            this.debugFolder.add(this.angle.value, 'y').step(0.01).min(- Math.PI).max(Math.PI).name('angle Y').listen().onChange(() => { this.angle.customized = true })
+            this.debugFolder.add(this.angle.value, 'z').step(0.01).min(- Math.PI).max(Math.PI).name('angle Z').listen().onChange(() => { this.angle.customized = true })
         }
     }
 
     setInstance()
     {
         // Set up
-        this.instance = new THREE.PerspectiveCamera(40, this.sizes.viewport.width / this.sizes.viewport.height, 1, 80)
+        this.instance = new THREE.PerspectiveCamera(100, this.sizes.viewport.width / this.sizes.viewport.height, 0.1, 200)
         this.instance.up.set(0, 0, 1)
         this.instance.position.copy(this.angle.value)
         this.instance.lookAt(new THREE.Vector3())
@@ -115,61 +129,82 @@ export default class Camera
         // Time tick
         this.time.on('tick', () =>
         {
-            if(this.mode === 'isometric' && !this.orbitControls.enabled)
+            if(this.mode === 'free')
             {
-                this.targetEased.x += (this.target.x - this.targetEased.x) * this.easing
-                this.targetEased.y += (this.target.y - this.targetEased.y) * this.easing
-                this.targetEased.z += (this.target.z - this.targetEased.z) * this.easing
+                // Free camera mode - don't update position, let external controllers handle it
+                // (used by ScrollNavigator)
+            }
+            else if(this.mode === 'isometric' && !this.orbitControls.enabled)
+            {
+                // Follow car from behind with fixed offset relative to car's coordinate system
+                if(this.car)
+                {
+                    // Get car's position and rotation from container
+                    const carPos = this.car.container.position.clone()
+                    const carRotation = this.car.container.rotation.z
+                    
+                    // Use the configured isometric offset
+                    let cameraOffset = this.isometricOffset.clone()
+                    
+                    // Rotate camera offset by car's rotation to keep it relative to car's CS
+                    const rotationQuaternion = new THREE.Quaternion()
+                    rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), carRotation)
+                    cameraOffset.applyQuaternion(rotationQuaternion)
+                    
+                    // Calculate target position with easing
+                    const targetPos = carPos.clone().add(cameraOffset)
+                    this.targetEased.x += (targetPos.x - this.targetEased.x) * this.easing
+                    this.targetEased.y += (targetPos.y - this.targetEased.y) * this.easing
+                    this.targetEased.z += (targetPos.z - this.targetEased.z) * this.easing
+                    
+                    // Set camera position
+                    this.instance.position.copy(this.targetEased)
+                    
+                    // Look at car center
+                    const lookAtPoint = carPos.clone()
+                    lookAtPoint.z += 1 // Slight upward offset
+                    this.instance.lookAt(lookAtPoint)
+                }
+                else
+                {
+                    // Fallback if car not available
+                    this.targetEased.x += (this.target.x - this.targetEased.x) * this.easing
+                    this.targetEased.y += (this.target.y - this.targetEased.y) * this.easing
+                    this.targetEased.z += (this.target.z - this.targetEased.z) * this.easing
 
-                // Apply zoom
-                this.instance.position.copy(this.targetEased).add(this.angle.value.clone().normalize().multiplyScalar(this.zoom.distance))
+                    this.instance.position.copy(this.targetEased).add(this.angle.value.clone().normalize().multiplyScalar(this.zoom.distance))
+                    this.instance.lookAt(this.targetEased)
 
-                // Look at target
-                this.instance.lookAt(this.targetEased)
-
-                // Apply pan
-                this.instance.position.x += this.pan.value.x
-                this.instance.position.y += this.pan.value.y
+                    this.instance.position.x += this.pan.value.x
+                    this.instance.position.y += this.pan.value.y
+                }
             }
             else if(this.mode === 'pov')
             {
                 // POV mode - follow car
                 if(this.car)
                 {
-                    const carPos = new THREE.Vector3(
-                        this.car.physics.car.chassis.body.position.x,
-                        this.car.physics.car.chassis.body.position.y,
-                        this.car.physics.car.chassis.body.position.z
-                    )
-                    // Get car's forward direction
-                    const carQuat = new THREE.Quaternion(
-                        this.car.physics.car.chassis.body.quaternion.x,
-                        this.car.physics.car.chassis.body.quaternion.y,
-                        this.car.physics.car.chassis.body.quaternion.z,
-                        this.car.physics.car.chassis.body.quaternion.w
-                    )
-                    // Forward vector for car (X-axis due to -PI/2 Z rotation)
-                    const forward = new THREE.Vector3(1, 0, 0)
-                    forward.applyQuaternion(carQuat)
+                    // Get car's position and rotation from container
+                    const carPos = this.car.container.position.clone()
+                    const carRotation = this.car.container.rotation.z
                     
-                    // Position camera above and in front of car
-                    const povPos = carPos.clone()
-                    povPos.z += this.povHeight
-                    povPos.add(forward.clone().multiplyScalar(this.povDistance * this.povZoom))
+                    // Fixed offset in car's local coordinates (above and in front)
+                    let povOffset = new THREE.Vector3(0, 0.3, 0.8)
+                    
+                    // Rotate POV offset by car's rotation
+                    const rotationQuaternion = new THREE.Quaternion()
+                    rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), carRotation)
+                    povOffset.applyQuaternion(rotationQuaternion)
+                    
+                    // Position camera
+                    const povPos = carPos.clone().add(povOffset)
                     this.instance.position.copy(povPos)
                     
-                    // Look in car's direction with horizontal rotation only
-                    const lookTarget = carPos.clone()
-                    lookTarget.z += this.povHeight * 0.5
+                    // Look at point in front of car
+                    let lookAtOffset = new THREE.Vector3(0, 5, 0)
+                    lookAtOffset.applyQuaternion(rotationQuaternion)
+                    const lookTarget = carPos.clone().add(lookAtOffset)
                     
-                    // Apply horizontal rotation to forward direction
-                    const lookDir = forward.clone()
-                    const yAxis = new THREE.Vector3(0, 1, 0)
-                    const rotQuat = new THREE.Quaternion()
-                    rotQuat.setFromAxisAngle(yAxis, this.rotation.horizontal)
-                    lookDir.applyQuaternion(rotQuat)
-                    
-                    lookTarget.add(lookDir.multiplyScalar(10))
                     this.instance.lookAt(lookTarget)
                 }
             }
@@ -260,9 +295,12 @@ export default class Camera
             this.instance.fov = this.fov.menu
             this.instance.updateProjectionMatrix()
             
-            // Show car body
+            // Teleport car to menu starting position (in front of camera)
             if(this.car)
             {
+                const menuSpotPosition = new THREE.Vector3(0, 0, 3)
+                this.car.teleportTo(menuSpotPosition)
+                
                 this.car.container.traverse((_child) =>
                 {
                     if(_child.isMesh)
@@ -274,7 +312,12 @@ export default class Camera
             
             // Show the menu overlay
             const menuOverlay = document.querySelector('.js-menu-overlay')
-            if(menuOverlay) menuOverlay.classList.add('active')
+            if(menuOverlay) 
+            {
+                menuOverlay.classList.add('active')
+                // Position menu in 3D space in front of car
+                this.updateMenuPosition()
+            }
         }
         else
         {
@@ -282,6 +325,26 @@ export default class Camera
             const menuOverlay = document.querySelector('.js-menu-overlay')
             if(menuOverlay) menuOverlay.classList.remove('active')
         }
+    }
+
+    updateMenuPosition()
+    {
+        // Convert car position to screen space for menu positioning
+        const menuOverlay = document.querySelector('.js-menu-overlay')
+        if(!menuOverlay || !this.car) return
+
+        // Position menu 3 units in front of the car
+        const menuWorldPos = new THREE.Vector3(0, 0, 5)
+        
+        // Update menu position each frame
+        this.time.on('tick', () =>
+        {
+            if(this.mode === 'menu' && this.car && menuOverlay.classList.contains('active'))
+            {
+                // Menu stays centered in viewport since car is at origin
+                // This positions it as a floating element in 3D space
+            }
+        })
     }
 
     transitionToRoom(_roomName)
@@ -355,8 +418,8 @@ export default class Camera
         // Set up
         this.zoom = {}
         this.zoom.easing = 0.1
-        this.zoom.minDistance = 5
-        this.zoom.amplitude = 23
+        this.zoom.minDistance = 8
+        this.zoom.amplitude = 8
         this.zoom.value = this.config.cyberTruck ? 0.3 : 0.5
         this.zoom.targetValue = this.zoom.value
         this.zoom.distance = this.zoom.minDistance + this.zoom.amplitude * this.zoom.value

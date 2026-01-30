@@ -180,11 +180,11 @@ export default class Physics
 
             this.car.chassis.body = new CANNON.Body({ mass: this.car.options.chassisMass })
             this.car.chassis.body.allowSleep = false
-            this.car.chassis.body.position.set(0, 0, 12)
+            this.car.chassis.body.position.set(0, 0, 0)  // Start at origin in simplified mode
             this.car.chassis.body.sleep()
             this.car.chassis.body.addShape(this.car.chassis.shape, this.car.options.chassisOffset)
-            this.car.chassis.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 0, 1), - Math.PI * 0.5)
-
+            // No rotation needed for simplified car system
+            
             /**
              * Sound
              */
@@ -222,24 +222,24 @@ export default class Physics
                 customSlidingRotationalSpeed: this.car.options.wheelCustomSlidingRotationalSpeed,
                 useCustomSlidingRotationalSpeed: true,
                 directionLocal: new CANNON.Vec3(0, 0, - 1),
-                axleLocal: new CANNON.Vec3(0, 1, 0),
+                axleLocal: new CANNON.Vec3(1, 0, 0),
                 chassisConnectionPointLocal: new CANNON.Vec3(1, 1, 0) // Will be changed for each wheel
             }
 
             // Front left
-            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelFrontOffsetDepth, this.car.options.wheelOffsetWidth, 0)
+            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelOffsetWidth, this.car.options.wheelFrontOffsetDepth, 0)
             this.car.vehicle.addWheel(this.car.wheels.options)
 
             // Front right
-            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelFrontOffsetDepth, - this.car.options.wheelOffsetWidth, 0)
+            this.car.wheels.options.chassisConnectionPointLocal.set(- this.car.options.wheelOffsetWidth, this.car.options.wheelFrontOffsetDepth, 0)
             this.car.vehicle.addWheel(this.car.wheels.options)
 
             // Back left
-            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelBackOffsetDepth, this.car.options.wheelOffsetWidth, 0)
+            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelOffsetWidth, this.car.options.wheelBackOffsetDepth, 0)
             this.car.vehicle.addWheel(this.car.wheels.options)
 
             // Back right
-            this.car.wheels.options.chassisConnectionPointLocal.set(this.car.options.wheelBackOffsetDepth, - this.car.options.wheelOffsetWidth, 0)
+            this.car.wheels.options.chassisConnectionPointLocal.set(- this.car.options.wheelOffsetWidth, this.car.options.wheelBackOffsetDepth, 0)
             this.car.vehicle.addWheel(this.car.wheels.options)
 
             this.car.vehicle.addToWorld(this.world)
@@ -357,7 +357,7 @@ export default class Physics
             this.car.speed = positionDelta.length() / this.time.delta
 
             // Update forward
-            const localForward = new CANNON.Vec3(1, 0, 0)
+            const localForward = new CANNON.Vec3(0, 1, 0)
             this.car.chassis.body.vectorToWorldFrame(localForward, this.car.worldForward)
             this.car.angle = Math.atan2(this.car.worldForward.y, this.car.worldForward.x)
 
@@ -441,7 +441,7 @@ export default class Physics
             this.car.model.chassis.position.copy(this.car.chassis.body.position).add(this.car.options.chassisOffset)
             this.car.model.chassis.quaternion.copy(this.car.chassis.body.quaternion)
 
-            // Update wheel models
+            // Update wheel models with spinning animation
             for(const _wheelKey in this.car.wheels.bodies)
             {
                 const wheelBody = this.car.wheels.bodies[_wheelKey]
@@ -449,6 +449,20 @@ export default class Physics
 
                 wheelMesh.position.copy(wheelBody.position)
                 wheelMesh.quaternion.copy(wheelBody.quaternion)
+                
+                // Add spinning animation based on velocity
+                const wheelSpeed = this.car.vehicle.wheelInfos[_wheelKey].engineForce || 0
+                if(Math.abs(wheelSpeed) > 0.1)
+                {
+                    const spinAxis = new CANNON.Vec3(1, 0, 0) // Wheels spin around X-axis
+                    const spinAmount = wheelSpeed * this.time.delta * 0.01
+                    const spinQuat = new CANNON.Quaternion()
+                    spinQuat.setFromAxisAngle(spinAxis, spinAmount)
+                    wheelMesh.quaternion.multiplyQuaternions(
+                        new THREE.Quaternion(spinQuat.x, spinQuat.y, spinQuat.z, spinQuat.w),
+                        wheelMesh.quaternion
+                    )
+                }
             }
 
             /**
@@ -557,13 +571,13 @@ export default class Physics
                 this.car.accelerating = 0
             }
 
-            this.car.vehicle.applyEngineForce(- this.car.accelerating, this.car.wheels.indexes.backLeft)
-            this.car.vehicle.applyEngineForce(- this.car.accelerating, this.car.wheels.indexes.backRight)
+            this.car.vehicle.applyEngineForce(this.car.accelerating, this.car.wheels.indexes.backLeft)
+            this.car.vehicle.applyEngineForce(this.car.accelerating, this.car.wheels.indexes.backRight)
 
             if(this.car.options.controlsSteeringQuad)
             {
-                this.car.vehicle.applyEngineForce(- this.car.accelerating, this.car.wheels.indexes.frontLeft)
-                this.car.vehicle.applyEngineForce(- this.car.accelerating, this.car.wheels.indexes.frontRight)
+                this.car.vehicle.applyEngineForce(this.car.accelerating, this.car.wheels.indexes.frontLeft)
+                this.car.vehicle.applyEngineForce(this.car.accelerating, this.car.wheels.indexes.frontRight)
             }
 
             /**

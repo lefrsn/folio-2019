@@ -179,8 +179,8 @@ export default class Sounds
 
     setMute()
     {
-        // Set up
-        this.muted = typeof this.debug !== 'undefined'
+        // Set up - always muted
+        this.muted = true
         Howler.mute(this.muted)
 
         // M Key

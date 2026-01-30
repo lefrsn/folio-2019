@@ -101,7 +101,7 @@ export default class Application
     }
 
     /**
-     * Set camera
+     * Set camera - all configuration is now in Camera.js
      */
     setCamera()
     {
@@ -119,6 +119,7 @@ export default class Application
         {
             if(this.world && this.world.car)
             {
+                this.camera.car = this.world.car
                 this.camera.target.x = this.world.car.chassis.object.position.x
                 this.camera.target.y = this.world.car.chassis.object.position.y
             }
@@ -142,12 +143,12 @@ export default class Application
         this.passes.renderPass = new RenderPass(this.scene, this.camera.instance)
 
         this.passes.horizontalBlurPass = new ShaderPass(BlurPass)
-        this.passes.horizontalBlurPass.strength = this.config.touch ? 0 : 1
+        this.passes.horizontalBlurPass.strength = 0 // Disabled blur
         this.passes.horizontalBlurPass.material.uniforms.uResolution.value = new THREE.Vector2(this.sizes.viewport.width, this.sizes.viewport.height)
         this.passes.horizontalBlurPass.material.uniforms.uStrength.value = new THREE.Vector2(this.passes.horizontalBlurPass.strength, 0)
 
         this.passes.verticalBlurPass = new ShaderPass(BlurPass)
-        this.passes.verticalBlurPass.strength = this.config.touch ? 0 : 1
+        this.passes.verticalBlurPass.strength = 0 // Disabled blur
         this.passes.verticalBlurPass.material.uniforms.uResolution.value = new THREE.Vector2(this.sizes.viewport.width, this.sizes.viewport.height)
         this.passes.verticalBlurPass.material.uniforms.uStrength.value = new THREE.Vector2(0, this.passes.verticalBlurPass.strength)
 

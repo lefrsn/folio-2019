@@ -34,12 +34,69 @@ export default class Car
         this.setModels()
         this.setMovement()
         this.setChassis()
+        this.setCoordinateSystemVisuals()
         this.setAntena()
         this.setBackLights()
         this.setWheels()
         this.setTransformControls()
         this.setShootingBall()
         this.setKlaxon()
+    }
+
+    setCoordinateSystemVisuals()
+    {
+        // Create separate container for coordinate system visuals
+        this.coordinateSystemContainer = new THREE.Object3D()
+        this.container.add(this.coordinateSystemContainer)
+        
+        // No rotation for coordinate system
+        const coordRotation = new THREE.Quaternion()
+        coordRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0)
+        
+        // Create axes helper to visualize car's coordinate system
+        const axesHelper = new THREE.AxesHelper(2)
+        this.coordinateSystemContainer.add(axesHelper)
+        
+        // Add text labels for axes
+        const createTextLabel = (text, color) => {
+            const canvas = document.createElement('canvas')
+            canvas.width = 256
+            canvas.height = 256
+            const context = canvas.getContext('2d')
+            context.fillStyle = color
+            context.font = 'Bold 120px Arial'
+            context.fillText(text, 30, 150)
+            
+            const texture = new THREE.CanvasTexture(canvas)
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture })
+            return new THREE.Sprite(spriteMaterial)
+        }
+        
+        // X axis - Red (right)
+        const xLabel = createTextLabel('X', '#ff0000')
+        xLabel.position.set(3, 0, 0)
+        xLabel.scale.set(1, 1, 1)
+        this.coordinateSystemContainer.add(xLabel)
+        
+        // Y axis - Green (forward)
+        const yLabel = createTextLabel('Y', '#00ff00')
+        yLabel.position.set(0, 3, 0)
+        yLabel.scale.set(1, 1, 1)
+        this.coordinateSystemContainer.add(yLabel)
+        
+        // Z axis - Blue (up)
+        const zLabel = createTextLabel('Z', '#0000ff')
+        zLabel.position.set(0, 0, 3)
+        zLabel.scale.set(1, 1, 1)
+        this.coordinateSystemContainer.add(zLabel)
+        
+        // Apply no rotation
+        this.coordinateSystemContainer.quaternion.copy(coordRotation)
+        
+        // Update coordinate system to follow car in tick
+        this.time.on('tick', () => {
+            this.coordinateSystemContainer.quaternion.copy(coordRotation)
+        })
     }
 
     setModels()
@@ -71,64 +128,91 @@ export default class Car
 
     setMovement()
     {
-        this.movement = {}
-        this.movement.speed = new THREE.Vector3()
-        this.movement.localSpeed = new THREE.Vector3()
-        this.movement.acceleration = new THREE.Vector3()
-        this.movement.localAcceleration = new THREE.Vector3()
-        this.movement.lastScreech = 0
+        this.movement = {
+            position: new THREE.Vector3(0, 0, 0),
+            moveSpeed: 0.1,
+            rotation: -Math.PI / 2, // Face negative Y direction (toward menu billboard)
+            rotationSpeed: 0.05,
+            acceleration: new THREE.Vector2(0, 0)
+        }
 
-        // Time tick
+        // Time tick - handle keyboard input
         this.time.on('tick', () =>
         {
-            // Movement
-            const movementSpeed = new THREE.Vector3()
-            movementSpeed.copy(this.chassis.object.position).sub(this.chassis.oldPosition)
-            movementSpeed.multiplyScalar(1 / this.time.delta * 17)
-            this.movement.acceleration = movementSpeed.clone().sub(this.movement.speed)
-            this.movement.speed.copy(movementSpeed)
-
-            this.movement.localSpeed = this.movement.speed.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), - this.chassis.object.rotation.z)
-            this.movement.localAcceleration = this.movement.acceleration.clone().applyAxisAngle(new THREE.Vector3(0, 0, 1), - this.chassis.object.rotation.z)
-
-            // Sound
-            this.sounds.engine.speed = this.movement.localSpeed.x
-            this.sounds.engine.acceleration = this.controls.actions.up ? (this.controls.actions.boost ? 1 : 0.5) : 0
-
-            if(this.movement.localAcceleration.x > 0.03 && this.time.elapsed - this.movement.lastScreech > 5000)
+            // Get movement input in local car coordinates
+            const localMoveDirection = new THREE.Vector3()
+            
+            if(this.controls.actions.up)
             {
-                this.movement.lastScreech = this.time.elapsed
-                this.sounds.play('screech')
+                localMoveDirection.y += 1  // Forward is local +Y
             }
+            if(this.controls.actions.down)
+            {
+                localMoveDirection.y -= 1  // Backward is local -Y
+            }
+            if(this.controls.actions.right)
+            {
+                localMoveDirection.x += 1  // Right is local +X
+            }
+            if(this.controls.actions.left)
+            {
+                localMoveDirection.x -= 1  // Left is local -X (but also rotates, handled below)
+            }
+
+            // Move coordinate system based on input
+            if(localMoveDirection.length() > 0)
+            {
+                localMoveDirection.normalize()
+                
+                // Rotate movement direction by car's rotation to get world direction
+                const rotationQuaternion = new THREE.Quaternion()
+                rotationQuaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), this.movement.rotation)
+                localMoveDirection.applyQuaternion(rotationQuaternion)
+                
+                this.movement.position.add(localMoveDirection.multiplyScalar(this.movement.moveSpeed))
+            }
+
+            // Rotate coordinate system based on A/D input (steering)
+            if(this.controls.actions.left)
+            {
+                this.movement.rotation += this.movement.rotationSpeed  // A rotates counterclockwise
+            }
+            if(this.controls.actions.right)
+            {
+                this.movement.rotation -= this.movement.rotationSpeed  // D rotates clockwise
+            }
+
+            // Update container position and rotation
+            this.container.position.copy(this.movement.position)
+            this.container.rotation.z = this.movement.rotation
+            
+            this.position.copy(this.container.position)
         })
     }
 
     setChassis()
     {
         this.chassis = {}
-        this.chassis.offset = new THREE.Vector3(0, 0, - 0.28)
+        this.chassis.offset = new THREE.Vector3(0, 0, 0.1)  // Closer to floor at z=0
         this.chassis.object = this.objects.getConvertedMesh(this.models.chassis.scene.children)
-        this.chassis.object.position.copy(this.physics.car.chassis.body.position)
-        this.chassis.oldPosition = this.chassis.object.position.clone()
+        this.chassis.object.position.copy(this.chassis.offset)
+        
+        // Rotate model 90 degrees around Z axis
+        this.chassis.modelRotation = new THREE.Quaternion()
+        this.chassis.modelRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI * 0.5)
+        this.chassis.object.quaternion.copy(this.chassis.modelRotation)
+        
         this.container.add(this.chassis.object)
+
+        console.log('✓ Car chassis added to container')
 
         this.shadows.add(this.chassis.object, { sizeX: 3, sizeY: 2, offsetZ: 0.2 })
 
-        // Time tick
+        // Time tick - keep chassis in same position relative to coordinate system
         this.time.on('tick', () =>
         {
-            // Save old position for movement calculation
-            this.chassis.oldPosition = this.chassis.object.position.clone()
-
-            // Update if mode physics
-            if(!this.transformControls.enabled)
-            {
-                this.chassis.object.position.copy(this.physics.car.chassis.body.position).add(this.chassis.offset)
-                this.chassis.object.quaternion.copy(this.physics.car.chassis.body.quaternion)
-            }
-
-            // Update position
-            this.position.copy(this.chassis.object.position)
+            this.chassis.object.position.copy(this.chassis.offset)
+            this.chassis.object.quaternion.copy(this.chassis.modelRotation)
         })
     }
 
@@ -245,25 +329,26 @@ export default class Car
         for(let i = 0; i < 4; i++)
         {
             const object = this.wheels.object.clone()
-
             this.wheels.items.push(object)
             this.container.add(object)
         }
 
-        // Time tick
+        // Set wheel positions relative to chassis
+        const wheelPositions = [
+            new THREE.Vector3(-0.8, 1, 0),    // Front left
+            new THREE.Vector3(0.8, 1, 0),    // Front right
+            new THREE.Vector3(-0.8, -1, 0),   // Back left
+            new THREE.Vector3(0.8, -1, 0)     // Back right
+        ]
+
+        // Time tick - position wheels around chassis
         this.time.on('tick', () =>
         {
-            if(!this.transformControls.enabled)
+            this.wheels.items.forEach((wheel, index) =>
             {
-                for(const _wheelKey in this.physics.car.wheels.bodies)
-                {
-                    const wheelBody = this.physics.car.wheels.bodies[_wheelKey]
-                    const wheelObject = this.wheels.items[_wheelKey]
-
-                    wheelObject.position.copy(wheelBody.position)
-                    wheelObject.quaternion.copy(wheelBody.quaternion)
-                }
-            }
+                wheel.position.copy(wheelPositions[index])
+                wheel.quaternion.identity()
+            })
         })
     }
 
@@ -386,4 +471,22 @@ export default class Car
             }
         })
     }
-}
+
+    teleportTo(_position)
+    {
+        // Teleport the car to a specific position
+        this.position.copy(_position)
+        this.container.position.copy(this.position)
+        this.container.updateMatrix()
+
+        // Update physics body position
+        if(this.physics && this.physics.car && this.physics.car.chassis && this.physics.car.chassis.body)
+        {
+            this.physics.car.chassis.body.position.x = _position.x
+            this.physics.car.chassis.body.position.y = _position.y
+            this.physics.car.chassis.body.position.z = _position.z
+            this.physics.car.chassis.body.velocity.x = 0
+            this.physics.car.chassis.body.velocity.y = 0
+            this.physics.car.chassis.body.velocity.z = 0
+        }
+    }}
