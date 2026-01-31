@@ -285,6 +285,8 @@ export default class IntroSection
 
     setDikes()
     {
+        // Bricks removed - commented out
+        /*
         this.dikes = {}
         this.dikes.brickOptions = {
             base: this.resources.items.brickBase.scene,
@@ -459,5 +461,6 @@ export default class IntroSection
                 }
             })
         }
+        */
     }
 }

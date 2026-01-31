@@ -26,6 +26,39 @@ export default class Objects
         this.setMerge()
     }
 
+    filterRocksFromScene(_scene)
+    {
+        // Recursively filter out all meshes with "rock", "stone", or "tree" in their name
+        const filteredChildren = []
+        
+        const traverseAndFilter = (object) => {
+            // Check if this object should be excluded (is a rock or tree)
+            if(object.name && object.name.match(/rock|stone|tree|Rock|Stone|Tree/i))
+            {
+                return false // Skip this object
+            }
+            
+            // If it has children, filter them too
+            if(object.children && object.children.length > 0)
+            {
+                object.children = object.children.filter(child => traverseAndFilter(child))
+            }
+            
+            return true // Keep this object
+        }
+        
+        // Filter top-level children
+        for(const child of _scene.children)
+        {
+            if(traverseAndFilter(child))
+            {
+                filteredChildren.push(child)
+            }
+        }
+        
+        return filteredChildren
+    }
+
     setParsers()
     {
         this.parsers = {}
@@ -286,8 +319,11 @@ export default class Objects
         // Sleep
         const sleep = typeof _options.sleep === 'undefined' ? true : _options.sleep
 
+        // Filter out rocks from the base scene before processing
+        const filteredChildren = this.filterRocksFromScene(_options.base)
+
         // Container
-        object.container = this.getConvertedMesh(_options.base.children, _options)
+        object.container = this.getConvertedMesh(filteredChildren, _options)
         object.container.position.copy(offset)
         object.container.rotation.copy(rotation)
         this.container.add(object.container)

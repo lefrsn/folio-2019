@@ -28,6 +28,9 @@ import gsap from 'gsap'
 import EasterEggs from './EasterEggs.js'
 import HTMLTo3D from '../HTMLTo3D.js'
 import ScrollNavigator from '../ScrollNavigator.js'
+import InputOverlay from '../InputOverlay.js'
+import AccessibilityManager from '../AccessibilityManager.js'
+import ViewModeManager from '../ViewModeManager.js'
 
 export default class World
 {
@@ -61,6 +64,8 @@ export default class World
         this.setFloor()
         // this.setTestCube()  // Re-enable cube
         this.setMenuBillboard()  // Add billboard
+        this.setInputOverlay()  // Virtual input overlay
+        this.setAccessibilityManager()  // ARIA and keyboard navigation
         this.setAreas()
         this.setStartingScreen()
     }
@@ -86,6 +91,7 @@ export default class World
         this.setSections()
         this.initializeLocations()
         this.setHTMLTo3DDemo()
+        this.setViewModeManager()
         
         // Container is already added to scene in Application.setWorld()
         // Just update the matrix
@@ -469,6 +475,30 @@ export default class World
         this.container.add(this.menuBillboard.container)
         
         console.log('[World] Menu billboard at position (10, 0, 2) rotated 270deg Y, 90deg X')
+    }
+
+    setInputOverlay()
+    {
+        this.inputOverlay = new InputOverlay()
+        console.log('[World] Input overlay initialized')
+    }
+
+    setAccessibilityManager()
+    {
+        this.accessibilityManager = new AccessibilityManager()
+        this.accessibilityManager.announce('Welcome to the 3D portfolio. Use arrow keys to navigate between pages.')
+        console.log('[World] Accessibility manager initialized')
+    }
+
+    setViewModeManager()
+    {
+        const canvas = document.querySelector('.js-canvas')
+        this.viewModeManager = new ViewModeManager({
+            canvas: canvas,
+            world: this,
+            htmlTo3D: this.htmlTo3D
+        })
+        console.log('[World] View mode manager initialized - 2D/3D toggle available')
     }
 
     setShadows()
@@ -1290,9 +1320,25 @@ export default class World
         pageButtons.forEach(button => {
             button.addEventListener('click', () => {
                 const pageIndex = parseInt(button.dataset.page)
-                if(this.scrollNavigator)
+                
+                // Check if in 2D mode
+                if(this.viewModeManager && this.viewModeManager.currentMode === '2d')
                 {
-                    this.scrollNavigator.focusOnPage(pageIndex)
+                    // In 2D mode - navigate to specific page
+                    const pageIds = ['about', 'work-experience', 'projects', 'skills', 'contact']
+                    const targetPage = pageIds[pageIndex]
+                    if(targetPage && this.viewModeManager.navigateToPage)
+                    {
+                        this.viewModeManager.navigateToPage(targetPage)
+                    }
+                }
+                else
+                {
+                    // In 3D mode - focus on page
+                    if(this.scrollNavigator)
+                    {
+                        this.scrollNavigator.focusOnPage(pageIndex)
+                    }
                 }
             })
         })
@@ -1366,7 +1412,8 @@ export default class World
         this.scrollNavigator = new ScrollNavigator({
             camera: this.camera,
             time: this.time,
-            debug: this.debug
+            debug: this.debug,
+            accessibilityManager: this.accessibilityManager
         })
         
         console.log('[World] ScrollNavigator initialized:', this.scrollNavigator)
@@ -1379,7 +1426,8 @@ export default class World
         this.htmlTo3D = new HTMLTo3D({
             scene: this.scene,
             container: this.container,
-            debug: this.debug
+            debug: this.debug,
+            sizes: this.sizes
         })
 
         // Create a welcome page in front of the car
@@ -1406,23 +1454,14 @@ export default class World
             rotation: { x: Math.PI / 2, y: 0, z: 0 } // Rotate 90 degrees around X axis to stand upright
         })
 
-        // Create a demo room with sample HTML content
-        const demoHTML = `
-            <h1>Welcome to 3D Web</h1>
-            <p>This is a demonstration of HTML content rendered in 3D space.</p>
-            <h2>Features</h2>
-            <p>Each section is positioned at a different depth in the room. Scroll forward to explore!</p>
-            <h3>Interactive Content</h3>
-            <p>You can render any HTML content as 3D panels in your scene.</p>
-            <button>Click Me</button>
-            <h2>Products Section</h2>
-            <p>Imagine product cards floating and rotating in 3D space here.</p>
-        `
-
-        // Create the room at the projects location
+        // Get actual content sections from the hidden SEO content
+        const seoContent = document.querySelector('.seo-content')
+        const sections = seoContent ? seoContent.querySelectorAll('section') : []
+        
+        // Create the room with actual content sections
         this.demoRoom = this.htmlTo3D.createRoom({
-            html: demoHTML,
-            roomDepth: 100,  // Not used anymore, spacing is in createRoom
+            sections: sections,
+            roomDepth: 100,
             startZ: 0
         })
 

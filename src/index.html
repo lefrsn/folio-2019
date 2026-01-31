@@ -44,22 +44,160 @@
 
     <canvas class="canvas js-canvas"></canvas>
 
+    <!-- SEO-friendly fallback content for crawlers -->
+    <noscript>
+        <div style="max-width: 800px; margin: 50px auto; padding: 20px; font-family: Arial, sans-serif;">
+            <h1>Lennart Fresen - Creative Developer Portfolio</h1>
+            <p>Welcome to my interactive 3D portfolio. This site requires JavaScript to view the full 3D experience.</p>
+            
+            <section>
+                <h2>About Me</h2>
+                <p>Creative developer and designer specializing in interactive 3D web experiences.</p>
+            </section>
+            
+            <section>
+                <h2>Projects</h2>
+                <ul>
+                    <li>Interactive 3D Portfolio</li>
+                    <li>Web Applications</li>
+                    <li>Creative Coding Projects</li>
+                </ul>
+            </section>
+            
+            <section>
+                <h2>Contact</h2>
+                <p>Email: contact@example.com</p>
+            </section>
+        </div>
+    </noscript>
+
+    <!-- Hidden accessible HTML for SEO and screen readers -->
+    <div class="seo-content" style="position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden;" aria-hidden="false">
+        <h1>Lennart Fresen Portfolio</h1>
+        
+        <main>
+            <section id="about">
+                <h2>About Me</h2>
+                <p>Creative developer living in Paris, freelancer, former lead developer at Immersive Garden, former developer at Uzik and teacher. Specialized in interactive 3D web experiences.</p>
+                <p>With over 10 years of experience in web development, I focus on creating immersive and engaging digital experiences that push the boundaries of what's possible in the browser.</p>
+                <p>My expertise spans Three.js, WebGL, creative coding, and modern web technologies.</p>
+            </section>
+            
+            <section id="work-experience">
+                <h2>Work Experience</h2>
+                <article>
+                    <h3>Freelance Developer</h3>
+                    <p><em>2020 - Present</em></p>
+                    <p>Creating interactive web experiences with Three.js and modern web technologies. Working with clients worldwide on innovative digital projects.</p>
+                </article>
+                <article>
+                    <h3>Lead Developer at Immersive Garden</h3>
+                    <p><em>2018 - 2020</em></p>
+                    <p>Led development team in creating cutting-edge interactive installations and web experiences.</p>
+                </article>
+                <article>
+                    <h3>Developer at Uzik</h3>
+                    <p><em>2016 - 2018</em></p>
+                    <p>Developed creative web applications and interactive experiences for various brands.</p>
+                </article>
+            </section>
+            
+            <section id="projects">
+                <h2>Projects</h2>
+                <article>
+                    <h3>3D Interactive Portfolio</h3>
+                    <p>An immersive 3D experience showcasing projects and skills using Three.js. Features physics-based interactions and real-time rendering.</p>
+                    <p><small>Technologies: Three.js, WebGL, GLSL</small></p>
+                </article>
+                <article>
+                    <h3>Web Graphics Engine</h3>
+                    <p>Real-time rendering system for complex web visualizations. Optimized for performance and scalability.</p>
+                    <p><small>Technologies: WebGL, Canvas API, JavaScript</small></p>
+                </article>
+                <article>
+                    <h3>Interactive Museum Experience</h3>
+                    <p>Virtual museum tour with interactive exhibits and multimedia content. Accessible design with keyboard navigation support.</p>
+                    <p><small>Technologies: Three.js, React, Node.js</small></p>
+                </article>
+                <article>
+                    <h3>E-Commerce 3D Configurator</h3>
+                    <p>Product customization tool with real-time 3D preview. Integrated with e-commerce platform for seamless purchasing.</p>
+                    <p><small>Technologies: Three.js, Vue.js, Shopify API</small></p>
+                </article>
+            </section>
+            
+            <section id="skills">
+                <h2>Skills & Technologies</h2>
+                <article>
+                    <h3>3D Graphics</h3>
+                    <ul>
+                        <li>Three.js</li>
+                        <li>WebGL & GLSL</li>
+                        <li>Blender</li>
+                        <li>Physics engines (Cannon.js)</li>
+                    </ul>
+                </article>
+                <article>
+                    <h3>Frontend</h3>
+                    <ul>
+                        <li>JavaScript/TypeScript</li>
+                        <li>React, Vue, Svelte</li>
+                        <li>HTML5 & CSS3</li>
+                        <li>Responsive design</li>
+                    </ul>
+                </article>
+                <article>
+                    <h3>Tools & Workflow</h3>
+                    <ul>
+                        <li>Git & GitHub</li>
+                        <li>Webpack, Vite</li>
+                        <li>CI/CD pipelines</li>
+                        <li>Performance optimization</li>
+                    </ul>
+                </article>
+            </section>
+            
+            <section id="contact">
+                <h2>Contact</h2>
+                <p>Get in touch for collaborations and projects. I'm always interested in working on innovative and challenging web experiences.</p>
+                <form>
+                    <div>
+                        <label for="name">Name</label>
+                        <input type="text" id="name" placeholder="Your name">
+                    </div>
+                    <div>
+                        <label for="email">Email</label>
+                        <input type="email" id="email" placeholder="your.email@example.com">
+                    </div>
+                    <div>
+                        <label for="message">Message</label>
+                        <textarea id="message" placeholder="Tell me about your project..." rows="6"></textarea>
+                    </div>
+                    <button type="submit">Send Message</button>
+                </form>
+            </section>
+        </main>
+    </div>
+
     <!-- Back to Menu button (3D menu mode) -->
     <div style="position: fixed; top: 20px; left: 20px; z-index: 1000;">
         <button class="js-back-to-menu" style="padding: 12px 24px; font-size: 16px; cursor: pointer; background: #00ff88; border: none; border-radius: 8px; font-weight: bold; color: #1a1a1a; margin-right: 10px;">
             ← Back to Menu
         </button>
         <button class="js-goto-page" data-page="0" style="padding: 12px 20px; font-size: 14px; cursor: pointer; background: #4a9eff; border: none; border-radius: 8px; font-weight: bold; color: white; margin-right: 5px;">
-            Page 1
+            About
         </button>
         <button class="js-goto-page" data-page="1" style="padding: 12px 20px; font-size: 14px; cursor: pointer; background: #4a9eff; border: none; border-radius: 8px; font-weight: bold; color: white; margin-right: 5px;">
-            Page 2
+            Work
         </button>
         <button class="js-goto-page" data-page="2" style="padding: 12px 20px; font-size: 14px; cursor: pointer; background: #4a9eff; border: none; border-radius: 8px; font-weight: bold; color: white; margin-right: 5px;">
-            Page 3
+            Projects
         </button>
         <button class="js-goto-page" data-page="3" style="padding: 12px 20px; font-size: 14px; cursor: pointer; background: #4a9eff; border: none; border-radius: 8px; font-weight: bold; color: white; margin-right: 5px;">
-            Page 4
+            Skills
+        </button>
+        <button class="js-goto-page" data-page="4" style="padding: 12px 20px; font-size: 14px; cursor: pointer; background: #4a9eff; border: none; border-radius: 8px; font-weight: bold; color: white; margin-right: 5px;">
+            Contact
         </button>
     </div>
 

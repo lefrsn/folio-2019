@@ -47,6 +47,8 @@ export default class PlaygroundSection
 
     setBricksWalls()
     {
+        // Bricks removed - commented out
+        /*
         // Set up
         this.brickWalls = {}
         this.brickWalls.x = this.x + 15
@@ -144,6 +146,7 @@ export default class PlaygroundSection
         {
             this.debugFolder.add(this.brickWalls, 'reset').name('brickWalls reset')
         }
+        */
     }
 
     setBowling()

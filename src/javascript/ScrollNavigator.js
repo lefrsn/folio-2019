@@ -10,6 +10,7 @@ export default class ScrollNavigator
         this.target = _options.target // The object to navigate around
         this.time = _options.time
         this.debug = _options.debug
+        this.accessibilityManager = _options.accessibilityManager // For ARIA announcements
         
         // Settings
         this.enabled = true // Start enabled
@@ -53,13 +54,41 @@ export default class ScrollNavigator
         // Mouse wheel event
         window.addEventListener('wheel', (event) =>
         {
+            // Don't prevent default if 2D view is active
+            if(document.querySelector('.view-2d-container')?.style.display === 'block')
+            {
+                return
+            }
+            
             console.log('[ScrollNavigator] wheel event detected! deltaY:', event.deltaY)
             
             event.preventDefault()
             
+            // If we're focused on a page, scroll within that page
+            if(this.isFocusingPage && this.panels && this.panels[this.focusedPageIndex])
+            {
+                const panel = this.panels[this.focusedPageIndex]
+                
+                // Check if panel is scrollable
+                if(panel.maxScroll && panel.maxScroll > 0)
+                {
+                    // Scroll within the page
+                    const scrollAmount = event.deltaY * 0.5 // Adjust sensitivity
+                    const newScrollY = panel.scrollY + scrollAmount
+                    
+                    if(panel.scrollTo)
+                    {
+                        panel.scrollTo(newScrollY)
+                        console.log('[ScrollNavigator] Scrolled page', this.focusedPageIndex, 'to Y:', panel.scrollY.toFixed(2))
+                    }
+                    
+                    return // Don't navigate to other pages
+                }
+            }
+            
             console.log('[ScrollNavigator] wheel event processing:', event.deltaY)
             
-            // Update target scroll depth
+            // Update target scroll depth (navigate between pages)
             this.targetScrollDepth += event.deltaY * this.sensitivity
             
             // Clamp between 0 and 1
@@ -74,6 +103,37 @@ export default class ScrollNavigator
         {
             console.log('[ScrollNavigator] keydown event:', event.key)
             
+            // If focused on a page, use arrow keys for page scrolling
+            if(this.isFocusingPage && this.panels && this.panels[this.focusedPageIndex])
+            {
+                const panel = this.panels[this.focusedPageIndex]
+                
+                if(panel.maxScroll && panel.maxScroll > 0)
+                {
+                    if(event.key === 'ArrowDown')
+                    {
+                        const scrollAmount = 50 // Pixels to scroll
+                        if(panel.scrollTo)
+                        {
+                            panel.scrollTo(panel.scrollY + scrollAmount)
+                            console.log('[ScrollNavigator] Arrow down: scrolled page to', panel.scrollY)
+                        }
+                        return
+                    }
+                    else if(event.key === 'ArrowUp')
+                    {
+                        const scrollAmount = 50 // Pixels to scroll
+                        if(panel.scrollTo)
+                        {
+                            panel.scrollTo(panel.scrollY - scrollAmount)
+                            console.log('[ScrollNavigator] Arrow up: scrolled page to', panel.scrollY)
+                        }
+                        return
+                    }
+                }
+            }
+            
+            // Otherwise, navigate between pages
             if (event.key === 'ArrowDown' || event.key === 's')
             {
                 this.targetScrollDepth += 0.05
@@ -98,7 +158,7 @@ export default class ScrollNavigator
             if (this.isFocusingPage)
             {
                 // Camera is focused on a specific page
-                const radius = 10 // Circle radius (must match HTMLTo3D)
+                const radius = 7 // Circle radius (must match HTMLTo3D)
                 const centerY = 0 // Center of circle
                 
                 // Get actual page position from mesh if available
@@ -126,18 +186,19 @@ export default class ScrollNavigator
                     pageCenter = new THREE.Vector3(pageX, pageY, pageZ)
                 }
                 
-                // Calculate angle from center for camera positioning
+                // Calculate angle to page in XY plane
                 const angle = Math.atan2(pageX, pageY - centerY)
                 
-                // Calculate the inward normal (toward center)
-                const normalX = -Math.sin(angle)
-                const normalY = -Math.cos(angle)
-                const normalZ = 0
+                // Camera position: Position close to page so it fills the view
+                // Calculate inward direction (toward center from page)
+                const inwardX = -Math.sin(angle)
+                const inwardY = -Math.cos(angle)
                 
-                // Camera position: 2 units away from page center along the inward normal
-                const targetCameraX = pageX + normalX * 2
-                const targetCameraY = pageY + normalY * 2
-                const targetCameraZ = pageZ + normalZ * 2
+                // Place camera 1.0 unit in front of the page (inward from page position)
+                const distanceFromPage = 1.0
+                const targetCameraX = pageX + inwardX * distanceFromPage
+                const targetCameraY = pageY + inwardY * distanceFromPage
+                const targetCameraZ = pageZ // Same height as page center for straight-on view
                 
                 // If we just started focusing OR target changed, update positions
                 const targetPosition = new THREE.Vector3(targetCameraX, targetCameraY, targetCameraZ)
@@ -257,6 +318,12 @@ export default class ScrollNavigator
         this.focusedPageIndex = pageIndex
         // Don't reset positions - let the update loop detect the change
         console.log('[ScrollNavigator] Focusing on page', pageIndex)
+        
+        // Announce page change for accessibility
+        if(this.accessibilityManager)
+        {
+            this.accessibilityManager.announcePage(pageIndex, `Page ${pageIndex + 1}`)
+        }
     }
     
     /**

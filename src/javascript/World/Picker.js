@@ -133,6 +133,53 @@ export default class Picker
         return null
     }
 
+    checkInteractiveClick(panel, uv)
+    {
+        // Convert UV coordinates (0-1) to canvas pixel coordinates
+        const canvasX = uv.x * panel.canvasWidth
+        const canvasY = (1 - uv.y) * panel.canvasHeight // Flip Y axis
+        
+        console.log(`[Picker] Checking click at canvas coords (${canvasX.toFixed(1)}, ${canvasY.toFixed(1)})`)
+        
+        // Check each interactive region
+        for(const region of panel.interactiveRegions)
+        {
+            const bounds = region.bounds
+            if(canvasX >= bounds.x && canvasX <= bounds.x + bounds.width &&
+               canvasY >= bounds.y && canvasY <= bounds.y + bounds.height)
+            {
+                console.log(`[Picker] Hit interactive ${region.type}:`, region.text || region.href)
+                
+                // Trigger the appropriate action
+                if(region.type === 'link' && region.href)
+                {
+                    console.log('[Picker] Opening link:', region.href)
+                    window.open(region.href, '_blank')
+                    return region
+                }
+                else if(region.type === 'button')
+                {
+                    console.log('[Picker] Clicking button:', region.text)
+                    region.element.click()
+                    return region
+                }
+                else if(region.type === 'input' || region.type === 'select' || region.type === 'textarea')
+                {
+                    console.log('[Picker] Input element clicked - showing virtual overlay')
+                    if(this.world.inputOverlay)
+                    {
+                        this.world.inputOverlay.show(region, panel, (value) => {
+                            console.log('[Picker] Input value submitted:', value)
+                        })
+                    }
+                    return region
+                }
+            }
+        }
+        
+        return null
+    }
+
     checkButtonInteraction()
     {
         // Check for menu billboard interaction
@@ -172,6 +219,18 @@ export default class Picker
                 const panel = this.world.demoRoom.panels.find(p => p.mesh === clickedMesh)
                 if(panel && panel.pageIndex !== undefined)
                 {
+                    // Check for interactive elements first (if zoomed in)
+                    if(pageIntersects[0].uv && panel.interactiveRegions && panel.interactiveRegions.length > 0)
+                    {
+                        const interactiveClick = this.checkInteractiveClick(panel, pageIntersects[0].uv)
+                        if(interactiveClick)
+                        {
+                            console.log('[Picker] Interactive element clicked:', interactiveClick.type)
+                            return true // Click was handled by interactive element
+                        }
+                    }
+                    
+                    // No interactive element clicked, handle page focus/unfocus
                     console.log('[Picker] Page clicked:', panel.pageIndex)
                     if(this.world.scrollNavigator)
                     {
