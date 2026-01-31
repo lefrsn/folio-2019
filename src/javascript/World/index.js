@@ -1196,11 +1196,20 @@ export default class World
                 this.physics.car.chassis.body.angularVelocity.set(0, 0, 0)
             }
             
-            // Update camera
+            // Reset scroll navigator to starting position
+            if(this.scrollNavigator)
+            {
+                this.scrollNavigator.unfocusPage()
+                this.scrollNavigator.scrollDepth = 0
+                this.scrollNavigator.targetScrollDepth = 0
+            }
+            
+            // Update camera to starting position (0, 3, 0)
             if(this.camera && this.camera.instance)
             {
-                this.camera.instance.position.set(0, -10, 15)
-                this.camera.instance.lookAt(0, 0, 0)
+                this.camera.instance.position.set(0, 3, 0)
+                this.camera.instance.lookAt(0, -7, 0)
+                this.camera.instance.rotation.z = 0
             }
             
             // Disable scroll navigation
@@ -1215,20 +1224,20 @@ export default class World
 
     setSimpleFloor()
     {
-        // Simple floor plane - RE-ENABLED to test rendering
-        const floorGeometry = new THREE.PlaneGeometry(100, 100)
-        const floorMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x808080,
-            side: THREE.DoubleSide
-        })
-        const floor = new THREE.Mesh(floorGeometry, floorMaterial)
-        floor.rotation.x = 0  // Keep horizontal (no rotation needed)
-        floor.position.z = 0
-        floor.matrixAutoUpdate = false
-        floor.updateMatrix()
-        this.container.add(floor)  // RE-ENABLED to verify rendering works
+        // Simple floor plane - DISABLED (not needed for scroll navigator view)
+        // const floorGeometry = new THREE.PlaneGeometry(100, 100)
+        // const floorMaterial = new THREE.MeshBasicMaterial({ 
+        //     color: 0x808080,
+        //     side: THREE.DoubleSide
+        // })
+        // const floor = new THREE.Mesh(floorGeometry, floorMaterial)
+        // floor.rotation.x = 0  // Keep horizontal (no rotation needed)
+        // floor.position.z = 0
+        // floor.matrixAutoUpdate = false
+        // floor.updateMatrix()
+        // this.container.add(floor)  // DISABLED
         
-        console.log('[World] Floor RE-ENABLED and added to container')
+        console.log('[World] Floor DISABLED')
 
         // Physics floor - commented out since we don't need physics for the menu
         // const floorBody = new CANNON.Body({
@@ -1238,7 +1247,7 @@ export default class World
         // })
         // this.physics.world.addBody(floorBody)
         
-        console.log('[World] Simple floor created (no physics)')
+        console.log('[World] Simple floor disabled (no physics)')
     }
 
     setLights()
@@ -1275,6 +1284,18 @@ export default class World
                 this.teleportToMenu()
             })
         }
+        
+        // Setup page navigation buttons
+        const pageButtons = document.querySelectorAll('.js-goto-page')
+        pageButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const pageIndex = parseInt(button.dataset.page)
+                if(this.scrollNavigator)
+                {
+                    this.scrollNavigator.focusOnPage(pageIndex)
+                }
+            })
+        })
         
         console.log('[World] Locations initialized:', Object.keys(this.locations))
     }
@@ -1417,7 +1438,8 @@ export default class World
         {
             this.scrollNavigator.startZ = 3        // Camera starts at Y=3
             this.scrollNavigator.maxDepth = 100    // Can travel 100 units on Y axis
-            console.log('[World] ScrollNavigator configured: startY=3, maxDepth=100')
+            this.scrollNavigator.panels = this.demoRoom.panels // Pass panel reference for accurate positioning
+            console.log('[World] ScrollNavigator configured: startY=3, maxDepth=100, panels:', this.demoRoom.panels.length)
         }
     }
 }

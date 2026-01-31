@@ -230,24 +230,25 @@ export default class HTMLTo3D
         const sections = doc.body.children
 
         const panels = []
-        const spacing = 8 // Distance between pages along Y
-        const xOffset = 5  // Horizontal offset for zigzag
+        const radius = 10 // Circle radius around starting point
+        const centerY = 0 // Center of the circle at Y=0
 
-        console.log(`[HTMLTo3D] Creating room: sections=${sections.length}, spacing=${spacing}, xOffset=${xOffset}`)
+        console.log(`[HTMLTo3D] Creating room: sections=${sections.length}, radius=${radius}, circular layout`)
 
         for (let i = 0; i < sections.length; i++)
         {
             const section = sections[i]
             const sectionHTML = section.outerHTML
 
-            // Alternate X position: +10, -10, +10, -10...
-            const panelX = (i % 2 === 0) ? xOffset : -xOffset
-            const panelY = -i * spacing
+            // Position pages in a circle around the starting point
+            const angle = (i / sections.length) * Math.PI * 2 // Full circle
+            const panelX = Math.sin(angle) * radius
+            const panelY = Math.cos(angle) * radius + centerY
             
-            // Rotate page to face center line (yaw rotation)
-            const rotationY = (i % 2 === 0) ? Math.PI / 6 : -Math.PI / 6  // 30 degrees yaw toward center
+            // Rotate page to face center (inward facing)
+            const rotationY = -angle // Face toward center
             
-            console.log(`[HTMLTo3D] Panel ${i} at position (${panelX}, ${panelY}, 1.5), rotation Y: ${rotationY}`)
+            console.log(`[HTMLTo3D] Panel ${i} at position (${panelX.toFixed(2)}, ${panelY.toFixed(2)}, 1.5), rotation Y: ${rotationY.toFixed(2)}, angle: ${(angle * 180/Math.PI).toFixed(1)}°`)
 
             const panel = this.createPanel({
                 html: sectionHTML,
@@ -255,18 +256,20 @@ export default class HTMLTo3D
                 size: { width: 5, height: 3.75 },
                 canvasWidth: 1024,
                 canvasHeight: 768,
-                rotation: { x: Math.PI / 2, y: rotationY, z: 0 } // Stand upright and yaw toward center
+                rotation: { x: Math.PI / 2, y: rotationY, z: 0 } // Stand upright and face center
             })
 
             panels.push(panel)
             panel.pageIndex = i // Store page index for click detection
+            panel.circleAngle = angle // Store angle for navigation
         }
 
-        console.log(`[HTMLTo3D] Created room with ${panels.length} panels in zigzag pattern`)
+        console.log(`[HTMLTo3D] Created room with ${panels.length} panels in circular pattern`)
         
         return {
             panels,
             depth: roomDepth,
+            radius: radius, // Store radius for reference
             navigate: (depth) => {
                 // Helper to navigate through the room
                 return currentZ + (depth * zStep)

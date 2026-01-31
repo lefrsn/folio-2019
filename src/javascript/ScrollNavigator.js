@@ -24,6 +24,10 @@ export default class ScrollNavigator
         this.targetPageIndex = 0 // Which page we're transitioning to
         this.isFocusingPage = false // Whether camera is focused on a page
         this.focusedPageIndex = -1 // Which page is focused (-1 = none)
+        this.focusStartPosition = null // Starting position when focus begins
+        this.focusTargetPosition = null // Target position for focusing
+        this.focusProgress = 0 // Progress along the path (0 to 1)
+        this.panels = null // Reference to actual panel meshes from demoRoom
         
         // Store initial camera position
         this.initialPosition = {
@@ -94,41 +98,99 @@ export default class ScrollNavigator
             if (this.isFocusingPage)
             {
                 // Camera is focused on a specific page
-                const spacing = 8
-                const xOffset = 5
+                const radius = 10 // Circle radius (must match HTMLTo3D)
+                const centerY = 0 // Center of circle
                 
-                const pageX = (this.focusedPageIndex % 2 === 0) ? xOffset : -xOffset
-                const pageY = 3 - (this.focusedPageIndex * spacing)
+                // Get actual page position from mesh if available
+                let pageX, pageY, pageZ, pageCenter
                 
-                // Smoothly move camera toward page position
-                this.camera.instance.position.x += (pageX * 0.7 - this.camera.instance.position.x) * 0.1
-                this.camera.instance.position.y += (pageY - this.camera.instance.position.y) * 0.1
-                this.camera.instance.position.z = 0
+                if (this.panels && this.panels[this.focusedPageIndex])
+                {
+                    // Use actual mesh world position
+                    const panel = this.panels[this.focusedPageIndex]
+                    panel.mesh.updateMatrixWorld(true)
+                    pageCenter = new THREE.Vector3()
+                    panel.mesh.getWorldPosition(pageCenter)
+                    pageX = pageCenter.x
+                    pageY = pageCenter.y
+                    pageZ = pageCenter.z
+                }
+                else
+                {
+                    // Fallback to calculated position
+                    const totalPages = 8
+                    const angle = (this.focusedPageIndex / totalPages) * Math.PI * 2
+                    pageX = Math.sin(angle) * radius
+                    pageY = Math.cos(angle) * radius + centerY
+                    pageZ = 1.5
+                    pageCenter = new THREE.Vector3(pageX, pageY, pageZ)
+                }
                 
-                // Face the page - only rotate around Y axis
-                const targetRotationY = (pageX > 0) ? Math.PI / 6 : -Math.PI / 6
-                this.camera.instance.rotation.y += (targetRotationY - this.camera.instance.rotation.y) * 0.1
-                this.camera.instance.rotation.x = 0
-                this.camera.instance.rotation.z = 0
+                // Calculate angle from center for camera positioning
+                const angle = Math.atan2(pageX, pageY - centerY)
+                
+                // Calculate the inward normal (toward center)
+                const normalX = -Math.sin(angle)
+                const normalY = -Math.cos(angle)
+                const normalZ = 0
+                
+                // Camera position: 2 units away from page center along the inward normal
+                const targetCameraX = pageX + normalX * 2
+                const targetCameraY = pageY + normalY * 2
+                const targetCameraZ = pageZ + normalZ * 2
+                
+                // If we just started focusing OR target changed, update positions
+                const targetPosition = new THREE.Vector3(targetCameraX, targetCameraY, targetCameraZ)
+                
+                if (!this.focusStartPosition || !this.focusTargetPosition || 
+                    !this.focusTargetPosition.equals(targetPosition))
+                {
+                    // Starting from current camera position
+                    this.focusStartPosition = this.camera.instance.position.clone()
+                    this.focusTargetPosition = targetPosition
+                    this.focusProgress = 0
+                }
+                
+                // Interpolate along the path from start to target
+                this.focusProgress += (1 - this.focusProgress) * 0.05
+                
+                this.camera.instance.position.lerpVectors(
+                    this.focusStartPosition,
+                    this.focusTargetPosition,
+                    this.focusProgress
+                )
+                
+                // Look at the page center (already defined above)
+                this.camera.instance.lookAt(pageCenter)
             }
             else
             {
-                // Camera moves freely down the center line
+                // Camera moves around the circle (orbiting)
                 this.scrollDepth += (this.targetScrollDepth - this.scrollDepth) * this.smoothness
                 
                 const maxPages = 8
-                const maxTravel = maxPages * 8 // Total Y distance
-                const targetY = 3 - (this.scrollDepth * maxTravel)
+                const orbitRadius = 5 // Camera orbit radius (inside the page circle)
                 
-                // Keep camera at center X=0
-                this.camera.instance.position.x += (0 - this.camera.instance.position.x) * 0.1
-                this.camera.instance.position.y = targetY
-                this.camera.instance.position.z = 0
+                // Calculate angle based on scroll depth
+                const orbitAngle = this.scrollDepth * Math.PI * 2 // Full rotation
                 
-                // Face straight down the corridor
-                this.camera.instance.rotation.z += (0 - this.camera.instance.rotation.z) * 0.1
+                // Camera position on circle
+                const targetX = Math.sin(orbitAngle) * orbitRadius
+                const targetY = Math.cos(orbitAngle) * orbitRadius
+                const targetZ = 0
                 
-                const lookAtTarget = new THREE.Vector3(0, targetY - 10, 0)
+                // Smoothly move to target position
+                this.camera.instance.position.x += (targetX - this.camera.instance.position.x) * 0.1
+                this.camera.instance.position.y += (targetY - this.camera.instance.position.y) * 0.1
+                this.camera.instance.position.z = targetZ
+                
+                // Face outward from center
+                this.camera.instance.rotation.z = 0
+                const lookAtTarget = new THREE.Vector3(
+                    Math.sin(orbitAngle) * 15,
+                    Math.cos(orbitAngle) * 15,
+                    0
+                )
                 this.camera.instance.lookAt(lookAtTarget)
             }
         })
@@ -193,6 +255,7 @@ export default class ScrollNavigator
     {
         this.isFocusingPage = true
         this.focusedPageIndex = pageIndex
+        // Don't reset positions - let the update loop detect the change
         console.log('[ScrollNavigator] Focusing on page', pageIndex)
     }
     
@@ -203,6 +266,9 @@ export default class ScrollNavigator
     {
         this.isFocusingPage = false
         this.focusedPageIndex = -1
+        this.focusStartPosition = null
+        this.focusTargetPosition = null
+        this.focusProgress = 0
         console.log('[ScrollNavigator] Unfocusing, returning to center')
     }
     
